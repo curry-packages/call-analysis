@@ -1,13 +1,13 @@
 {
-    "name": "demand-analysis",
-    "version": "1.0.0",
+    "name": "call-analysis",
+    "version": "0.0.1",
     "author": "Michael Hanus <mh@informatik.uni-kiel.de>",
     "synopsis": "A call-pattern analysis and transformation tool to improve lazy non-deterministic computations",
     "category": [ "Analysis", "Optimization" ],
     "dependencies": {
     },
     "compilerCompatibility": {
-        "pakcs": ">= 1.10.0, < 2.0.0"
+        "pakcs": ">= 1.14.0, < 2.0.0"
     },
     "license": "BSD-3-Clause",
     "licenseFile": "LICENSE",
@@ -15,7 +15,7 @@
                     "main": "Analysis"
                   },
      "source": {
-        "git": "https://git.ps.informatik.uni-kiel.de/curry-packages/demand-analysis.git",
+        "git": "https://git.ps.informatik.uni-kiel.de/curry-packages/call-analysis.git",
         "tag": "$version"
     }
 }
