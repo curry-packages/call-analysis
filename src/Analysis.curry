@@ -2,7 +2,7 @@
 --- Fixpoint analyzer for call patterns
 ---
 --- @author Michael Hanus
---- @version January 2012
+--- @version May 2017
 ----------------------------------------------------------------------------
 
 import TRS
@@ -94,6 +94,7 @@ abstractCall (ADom _ avar acons _ _ _ _ _) (f,cargs) = (f, map cons2aterm cargs)
 ----------------------------------------------------------------------------
 -- Semantic equation (part of an interpretation): f args = result
 data SemEq aterm = Eq String [aterm] aterm
+ deriving Eq
 
 -- (Abstract) Interpretation: list of semantic equations
 type SemInt aterm = [SemEq aterm]
@@ -106,6 +107,7 @@ type Sub a = [(Int,a)]
 
 -- Constructor terms with bottom elements:
 data CTerm = CBot | CVar Int | CCons String [CTerm]
+ deriving Eq
 
 -- pairwise matching of a list of patterns against a list of terms
 matchCTerms :: [Term] -> [CTerm] -> Maybe (Sub CTerm)
@@ -165,6 +167,7 @@ concreteDom = ADom CBot (error "Cannot handle free variables") CCons
 
 -- depth-k terms are constructor terms with cut variables:
 data DTerm = DBot | DCons String [DTerm] | CutVar
+ deriving Eq
 
 -- pairwise matching of a list of patterns against a list of terms
 matchDTerms :: [Term] -> [DTerm] -> Maybe (Sub DTerm)
@@ -264,21 +267,21 @@ depthDom k = ADom DBot (const CutVar) (consDTerm k) matchDTerms lessDSpecific
 -- Generic operations:
 
 -- generic equality on interpretations (note that equations are kept ordered)
-eqSemInt :: SemInt a -> SemInt a -> Bool
+eqSemInt :: Eq a => SemInt a -> SemInt a -> Bool
 eqSemInt = (==)
 
 -- Generic ordered insertion of semantic equations into an interpretation.
 -- The first argument is some ordering on terms (compatible with the
 -- information ordering on terms). An equation is not inserted
 -- if it is already there, i.e., the interpretation is managed as a set.
-insertSemEq :: (a->a->Bool) -> SemEq a -> SemInt a -> SemInt a
+insertSemEq :: Eq a => (a->a->Bool) -> SemEq a -> SemInt a -> SemInt a
 insertSemEq _ x []     = [x]
 insertSemEq dcmp x (y:ys) | x==y               = y : ys
                           | lessSemEq dcmp x y = x : y : ys
                           | otherwise          = y : insertSemEq dcmp x ys
 
 -- Extend an ordering on terms to an ordering on semantic equations.
-lessSemEq :: (a->a->Bool) -> SemEq a -> SemEq a -> Bool
+lessSemEq :: Eq a => (a->a->Bool) -> SemEq a -> SemEq a -> Bool
 lessSemEq dcmp (Eq f1 args1 v1) (Eq f2 args2 v2)
   | f1==f2    = leqList dcmp (args1++[v1]) (args2++[v2])
   | otherwise = leqString f1 f2
@@ -290,8 +293,8 @@ lessSemEq dcmp (Eq f1 args1 v1) (Eq f2 args2 v2)
 -- First argument: ordering relation on abstract terms (used to order
 --                 all equations of the interpretation)
 -- Second argument: less-specific ordering on equations
-updateSemEq :: (a->a->Bool) -> (SemEq a->SemEq a->Bool) -> SemEq a -> SemInt a
-            -> SemInt a
+updateSemEq :: Eq a => (a->a->Bool) -> (SemEq a->SemEq a->Bool)
+                    -> SemEq a -> SemInt a -> SemInt a
 updateSemEq _ _ x []     = [x]
 updateSemEq dcmp lessSpecificEq x (y:ys)
  | x == y             = y : ys
@@ -312,7 +315,7 @@ lessSpecificEqCallPattern lessSpecific (Eq f1 args1 v1) (Eq f2 args2 v2) =
 -- The first argument is the information ordering on terms.
 -- A semantic equation is less specific iff all arguments are identical
 -- and the result of the equations are less specific.
-lessSpecificEqResult :: (a->a->Bool) -> SemEq a -> SemEq a -> Bool
+lessSpecificEqResult :: Eq a => (a->a->Bool) -> SemEq a -> SemEq a -> Bool
 lessSpecificEqResult lessSpecific (Eq f1 args1 v1) (Eq f2 args2 v2) =
   f1==f2 && args1==args2 && lessSpecific v1 v2
 
@@ -325,8 +328,8 @@ lessSpecificEqResult lessSpecific (Eq f1 args1 v1) (Eq f2 args2 v2) =
 -- mains     : main calls (start interpretation)
 -- int       : interpretation to be transformed
 -- result: transformed interpretation
-transformInt :: ADom a -> (SemEq a -> SemInt a -> SemInt a)
-             -> [Rule] -> SemInt a -> SemInt a -> SemInt a
+transformInt :: Eq a => ADom a -> (SemEq a -> SemInt a -> SemInt a)
+                     -> [Rule] -> SemInt a -> SemInt a -> SemInt a
 transformInt (ADom abottom avar acons matchterms _ _ _ applyprim)
              insertsem trs mains int =
   foldr insertsem mains
@@ -350,8 +353,8 @@ transformInt (ADom abottom avar acons matchterms _ _ _ applyprim)
   newSemEq s (f,args) =
     map (\iargs -> Eq f iargs abottom) (extendListMap (evalInt s int) args)
 
-  -- abstract evaluation of a term w.r.t. a given substitution and interpretation
-  evalInt :: Sub a -> SemInt a -> Term -> [a]
+  -- abstract evaluation of a term w.r.t. a given substitution
+  -- and interpretation
   evalInt sub _ (Var v) = [maybe (avar v) id (lookup v sub)]
   evalInt sub eqs (Func Cons c args) =
     map (acons c) (extendListMap (evalInt sub eqs) args)
@@ -370,7 +373,7 @@ extendListMap f (x:xs) = [ y:ys | y <- f x, ys <- extendListMap f xs]
 
 ------------------------------------------------------------------------------
 -- Runs a simple fixpoint computation w.r.t. a set of abstract initial calls.
-runFixpoint :: ADom a
+runFixpoint :: Eq a => ADom a
             -> (SemEq a -> SemInt a -> SemInt a)
             -> [Rule] -> [(String,[a])] -> Bool
             -> ([SemEq a] -> [SemEq a] -> Bool)
@@ -477,8 +480,8 @@ fEqsOfWorkSem f ws = maybe [] id (lookupRBT f ws)
 --             a list of function names on which they depend
 -- result: final interpretation
 
-processWorkList :: ADom a -> (SemEq a->SemEq a->Bool) -> Bool -> [Rule]
-                -> [(String,[a])] -> WorkSemInt a -> IO (SemInt a)
+processWorkList :: Eq a => ADom a -> (SemEq a->SemEq a->Bool) -> Bool -> [Rule]
+                        -> [(String,[a])] -> WorkSemInt a -> IO (SemInt a)
 
 processWorkList _ _ _ _ [] finals =
   -- transform the final semantic into the usual format:
@@ -540,7 +543,7 @@ processWorkList adom@(ADom abottom avar acons matchterms _ _ _ applyprim)
   -- insert given abstract call if there does not already exist one
   -- which is more specific than this one; if the call is inserted,
   -- all less specific calls are removed
-  insertIfBetterCall :: (String,[a]) -> [(String,[a])] -> [(String,[a])]
+  --insertIfBetterCall :: (String,[a]) -> [(String,[a])] -> [(String,[a])]
   insertIfBetterCall eq wlist =
     if any (leqCall eq) wlist
     then wlist
@@ -551,7 +554,7 @@ processWorkList adom@(ADom abottom avar acons matchterms _ _ _ applyprim)
 
   -- is a given abstract call more specific than all equations
   -- in the current final interpretation?
-  isBetterCall :: (String,[a]) -> Bool
+  --isBetterCall :: (String,[a]) -> Bool
   isBetterCall (f,args) =
     not (any (\ (args',_,_) -> --leqOnList domleq args args'
                   lessSpecificEq (Eq f args abottom) (Eq f args' abottom))
@@ -561,7 +564,6 @@ processWorkList adom@(ADom abottom avar acons matchterms _ _ _ applyprim)
   -- anything in the current final equations,
   -- i.e., if there does not already exist one final equation which has
   -- an identical left-hand side but a more specific result than this one
-  hasBetterResult :: ([a],a,[String]) -> Bool
   hasBetterResult eq = not (any (leqEq eq) (fEqsOfWorkSem fc finals))
 
   -- compare given equation: left-hand sides and right-hand sides
@@ -593,7 +595,7 @@ processWorkList adom@(ADom abottom avar acons matchterms _ _ _ applyprim)
                            (extendListMap (evalInt s finals) args)
 
   -- abstract evaluation of a term w.r.t. a substitution and interpretation
-  evalInt :: Sub a -> WorkSemInt a -> Term -> [a]
+  --evalInt :: Sub a -> WorkSemInt a -> Term -> [a]
   evalInt sub _ (Var v) = [maybe (avar v) id (lookup v sub)]
   evalInt sub eqs (Func Cons c args) =
     map (acons c) (extendListMap (evalInt sub eqs) args)
@@ -608,7 +610,7 @@ processWorkList adom@(ADom abottom avar acons matchterms _ _ _ applyprim)
 
 -- run a fixpoint computation with working lists starting form a given
 -- list of abstract function calls:
-runFixpointWL :: ADom a -> (SemEq a->SemEq a->Bool) -> [Rule]
+runFixpointWL :: Eq a => ADom a -> (SemEq a->SemEq a->Bool) -> [Rule]
               -> [(String,[a])] -> Bool
               -> IO (SemInt a)
 runFixpointWL adom lessSpecificEq rules maincalls withprint = do
@@ -779,7 +781,7 @@ transformExp ndinfos strinfos (Func Def f args) =
     strictApply (Func Def (if str then "$!" else "$") [exp,x]) strs xs
 
 -- extract list of strict arguments for each function from least fixpoint
-extractStrictness :: ADom a -> SemInt a -> [(String,[Int])]
+extractStrictness :: Eq a => ADom a -> SemInt a -> [(String,[Int])]
 extractStrictness adom aint = map checkStrictArgs allfuncs
  where
   abot = adomBottom adom
@@ -841,6 +843,7 @@ bench k file = do
    else putStrLn (showSemInt absdom semwl)
 
 -- run the benchmarks of the examples directory:
+runBench :: IO ()
 runBench = do
   bench 1 "addadd"
   bench 2 "addlast"

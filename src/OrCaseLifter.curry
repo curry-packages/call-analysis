@@ -7,7 +7,7 @@
 --- by auxiliary functions.
 ---
 --- @author Michael Hanus
---- @version December 2005
+--- @version May 2017
 ------------------------------------------------------------------------------
 
 
@@ -39,6 +39,7 @@ liftNestedOrCaseI prefix idx (Func f n v t (External fe) : fs) =
    in (Func f n v t (External fe):newfsfuns,newidx)
 
 data ExpMode = Top | InOr | InCase | Inside
+ deriving Eq
 
 liftNestedOrCaseExp :: QName -> ExpMode -> Int -> Expr -> (Expr,[FuncDecl],Int)
 liftNestedOrCaseExp _ _ idx (Var v) = (Var v,[],idx)

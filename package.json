@@ -1,14 +1,14 @@
 {
     "name": "call-analysis",
-    "version": "0.0.1",
+    "version": "2.0.0",
     "author": "Michael Hanus <mh@informatik.uni-kiel.de>",
     "synopsis": "A call-pattern analysis and transformation tool to improve lazy non-deterministic computations",
     "category": [ "Analysis", "Optimization" ],
     "dependencies": {
     },
     "compilerCompatibility": {
-        "pakcs": ">= 1.14.0, < 2.0.0",
-        "kics2": ">= 0.5.0, < 2.0.0"
+        "pakcs": ">= 2.0.0",
+        "kics2": ">= 2.0.0"
     },
     "license": "BSD-3-Clause",
     "licenseFile": "LICENSE",

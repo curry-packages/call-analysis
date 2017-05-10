@@ -11,6 +11,7 @@ import Names
 data Term = Var Int | Func FuncType String [Term]
 
 data FuncType = Def | Cons
+ deriving Eq
 
 -- abbreviations
 func = Func Def
