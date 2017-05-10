@@ -20,7 +20,7 @@ kics2Exec = "kics2"
 mccExec = "/opt/mcc/bin/cyc"
 
 -- nd optimizer executable
-ndoptExec = "../Analysis"
+ndoptExec = "curry-ndopt"
 
 -- ViaLOIS system
 vialoisExec = "/net/medoc/home/mh/vialois/vialois"

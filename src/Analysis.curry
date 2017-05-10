@@ -647,14 +647,18 @@ main = do
    then callPatternAnalysis depth max wlist (stripSuffix prog)
    else transformNondet depth max wlist (stripSuffix prog)
 
-mainCallError args = error $
-    "Illegal arguments: " ++ concat (intersperse " " args) ++ "\n" ++
-    "Usage: transnd [-d <k>] [-max] [-fix|-wlist] [-call] <main_module_name>\n" ++
-    "       <k>   : term depth (default: 1)\n" ++
-    "       -max  : compute only maximal abstract elements in fixpoints\n" ++
-    "       -fix  : use simple fixpoint iteration\n" ++
-    "       -wlist: use working list fixpoint computation (default)\n" ++
-    "       -call : compute only call patterns (and do not transform program)\n"
+mainCallError args = error $ unlines
+  [ "Illegal arguments: " ++ unwords args
+  , ""
+  , "Usage: curry-ndopt [-d <k>] [-max] [-fix|-wlist] [-call] <module_name>"
+  , ""
+  , "Options:"
+  , "<k>   : term depth (default: 1)"
+  , "-max  : compute only maximal abstract elements in fixpoints"
+  , "-fix  : use simple fixpoint iteration"
+  , "-wlist: use working list fixpoint computation (default)"
+  , "-call : compute only call patterns (and do not transform program)"
+  ]
 
 checkArgs :: (Int,Bool,Bool,Bool,String) -> [String]
           -> (Int,Bool,Bool,Bool,String)

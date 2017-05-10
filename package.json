@@ -12,7 +12,7 @@
     },
     "license": "BSD-3-Clause",
     "licenseFile": "LICENSE",
-    "executable": { "name": "curry-calls",
+    "executable": { "name": "curry-ndopt",
                     "main": "Analysis"
                   },
      "source": {
