@@ -5,6 +5,7 @@
     "synopsis": "A call-pattern analysis and transformation tool to improve lazy non-deterministic computations",
     "category": [ "Analysis", "Optimization" ],
     "dependencies": {
+        "flatcurry": ">= 1.0.0"
     },
     "compilerCompatibility": {
         "pakcs": ">= 1.14.0, < 2.0.0",
