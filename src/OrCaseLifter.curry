@@ -14,7 +14,7 @@
 module OrCaseLifter(liftNestedOrCase) where
 
 import FlatCurry.Types as FC
-import List
+import Data.List
 
 
 --- Lift nested or/case expressions by replacing them by auxiliary functions.

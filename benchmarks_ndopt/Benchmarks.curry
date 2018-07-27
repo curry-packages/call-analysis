@@ -2,10 +2,10 @@
 -- Benchmarking non-determinism optimization
 ------------------------------------------------------------------------------
 
-import System
-import IO
+import System.Process
+import System.IO
 import IOExts
-import List
+import Data.List
 
 ------------------------------------------------------------------------------
 -- Auxiliary operations for benchmarking
@@ -26,8 +26,8 @@ ndoptExec = "curry-ndopt"
 vialoisExec = "/net/medoc/home/mh/vialois/vialois"
 
 evalCmd :: String -> IO String
-evalCmd cmd =do h <- connectToCommand cmd 
-                s <- hGetContents h 
+evalCmd cmd =do h <- connectToCommand cmd
+                s <- hGetContents h
                 hClose h
                 return s
 

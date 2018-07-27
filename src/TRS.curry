@@ -2,8 +2,8 @@
 
 module TRS where
 
-import List
-import Char
+import Data.List
+import Data.Char
 import Names
 
 ----------------------------------------------------------------------------
@@ -23,7 +23,7 @@ varsOf (Var v) = [v]
 varsOf (Func _ f args)
   | f == "LAMBDA" = let (largs,lexp) = splitAt (length args - 1) args
                      in varsOf (head lexp) \\ concatMap varsOf largs
-  | f == "LET" 
+  | f == "LET"
    = let (bindings,lexp) = splitAt (length args - 1) args
          bvars = concatMap (\ (Func _ _ [bvar,_]) -> varsOf bvar) bindings
       in varsOf (head lexp) \\ bvars

@@ -5,19 +5,20 @@
 --- @version May 2017
 ----------------------------------------------------------------------------
 
+import Data.List
+import qualified Data.Table.RBTree as RBT
+import System.IO
+import System.Directory
+import System.FilePath
+import System.Environment (getArgs)
+import Debug.Profile
+import Sort               (mergeSortBy,leqString,leqList)
+import Numeric            (readNat)
+
 import TRS
-import List
 import ReadFlatTRS
-import Sort(mergeSortBy,leqString,leqList)
-import Profile
-import System(getArgs)
-import FileGoodies
-import ReadNumeric(readNat)
-import TableRBT
 import NondetAnalysis
 import LetDropping
-import Directory
-import IO
 import ShowFlatCurry
 import qualified FlatCurry.Types as FC
 
@@ -28,21 +29,21 @@ analysisDir = ".curry/analysis"
 -- Create analysis directory for a given base file name, if necessary.
 createAnalysisDir :: String -> IO ()
 createAnalysisDir base = do
-  let anadir = dirName base ++ "/" ++ analysisDir
+  let anadir = takeDirectory base ++ "/" ++ analysisDir
   exanadir <- doesDirectoryExist anadir
   if exanadir then done
               else createDirectory anadir
 
 -- Nondet info file for a given module
 ndInfoFileName file =
-  let (dir,base) = splitDirectoryBaseName file
-      basemod = stripSuffix base
+  let (dir,base) = splitFileName file
+      basemod = dropExtension base
    in dir ++ "/" ++ analysisDir ++ "/" ++ basemod ++ ".ndinfo"
 
 -- strictness info file for a given module
 strictInfoFileName file =
-  let (dir,base) = splitDirectoryBaseName file
-      basemod = stripSuffix base
+  let (dir,base) = splitFileName file
+      basemod = dropExtension base
    in dir ++ "/" ++ analysisDir ++ "/" ++ basemod ++ ".strictinfo"
 
 ----------------------------------------------------------------------------
@@ -167,7 +168,7 @@ concreteDom = ADom CBot (error "Cannot handle free variables") CCons
 
 -- depth-k terms are constructor terms with cut variables:
 data DTerm = DBot | DCons String [DTerm] | CutVar
- deriving Eq
+ deriving (Eq, Ord)
 
 -- pairwise matching of a list of patterns against a list of terms
 matchDTerms :: [Term] -> [DTerm] -> Maybe (Sub DTerm)
@@ -461,11 +462,11 @@ printProgram adom rules maincalls = do
 -- The current semantic equations are represented as a mapping
 -- from function names into a list of equations (arguments,results)
 -- together with a list of function names on which the equation depends
-type WorkSemInt a = TableRBT String [([a],a,[String])]
+type WorkSemInt a = RBT.TableRBT String [([a],a,[String])]
 
 -- Look up the semantic equations of a function in the current semantics:
-fEqsOfWorkSem :: String -> WorkSemInt a -> [([a],a,[String])]
-fEqsOfWorkSem f ws = maybe [] id (lookupRBT f ws)
+fEqsOfWorkSem :: Prelude.Ord a => String -> WorkSemInt a -> [([a],a,[String])]
+fEqsOfWorkSem f ws = maybe [] id (RBT.lookup f ws)
 
 -- Process a working list of (abstract) calls to compute an interpretation:
 -- (processWorkList adom lessSpecificEq	showabs trs wl finals)
@@ -480,19 +481,19 @@ fEqsOfWorkSem f ws = maybe [] id (lookupRBT f ws)
 --             a list of function names on which they depend
 -- result: final interpretation
 
-processWorkList :: Eq a => ADom a -> (SemEq a->SemEq a->Bool) -> Bool -> [Rule]
-                        -> [(String,[a])] -> WorkSemInt a -> IO (SemInt a)
+processWorkList :: Ord a => ADom a -> (SemEq a -> SemEq a -> Bool) -> Bool
+                -> [Rule] -> [(String,[a])] -> WorkSemInt a -> IO (SemInt a)
 
 processWorkList _ _ _ _ [] finals =
   -- transform the final semantic into the usual format:
   return (concatMap (\ (f,feqs) -> map (\ (args,res,_) -> Eq f args res) feqs)
-                    (tableRBT2list finals))
+                    (RBT.toList finals))
 
 processWorkList adom@(ADom abottom avar acons matchterms _ _ _ applyprim)
        lessSpecificEq withprint trs wl@((fc,eargs) : working) finals = do
   if withprint
    then putStr (" W" ++ show (length wl) ++
-                "/F" ++ show (length (tableRBT2list finals)))
+                "/F" ++ show (length (RBT.toList finals)))
    else done
   let fcRules = let rules = funcRules fc trs
                  in if null rules
@@ -517,12 +518,12 @@ processWorkList adom@(ADom abottom avar acons matchterms _ _ _ applyprim)
         then []
         else concatMap (\ (f,feqs) -> concatMap (\ (args,_,deps) ->
                             if fc `elem` deps then [(f,args)] else []) feqs)
-                       (tableRBT2list finals)
+                       (RBT.toList finals)
   --putStrLn ("WORKING:" ++
   --          showSemInt adom (map (\ (f,args)->Eq f args abottom) wl))
   --putStrLn ("FINAL:" ++ showSemInt adom
   --     (concatMap (\ (f,feqs) -> map (\ (args,res,_) -> Eq f args res) feqs)
-  --                (tableRBT2list finals)))
+  --                (RBT.toList finals)))
   --putStrLn ("Function: " ++ fc)
   --putStrLn ("BETTER: " ++ show betterEquations)
   --putStrLn ("BEST  : " ++ show bestEquations)
@@ -536,7 +537,7 @@ processWorkList adom@(ADom abottom avar acons matchterms _ _ _ applyprim)
   -- insert better (dependency) equations  and delete all less specific ones:
   insertBetterIntoRemaining bettereq wsem =
     let oldfceqs = fEqsOfWorkSem fc wsem
-     in updateRBT fc
+     in RBT.update fc
           (bettereq : filter (\oldeq -> not (leqEq oldeq bettereq)) oldfceqs)
           wsem
 
@@ -610,14 +611,14 @@ processWorkList adom@(ADom abottom avar acons matchterms _ _ _ applyprim)
 
 -- run a fixpoint computation with working lists starting form a given
 -- list of abstract function calls:
-runFixpointWL :: Eq a => ADom a -> (SemEq a->SemEq a->Bool) -> [Rule]
+runFixpointWL :: Ord a => ADom a -> (SemEq a->SemEq a->Bool) -> [Rule]
               -> [(String,[a])] -> Bool
               -> IO (SemInt a)
 runFixpointWL adom lessSpecificEq rules maincalls withprint = do
   garbageCollect
   pi1 <- getProcessInfos
   finals <- processWorkList adom lessSpecificEq withprint rules
-                            maincalls (emptyTableRBT leqString)
+                            maincalls RBT.empty
   pi2 <- getProcessInfos
   printTiming pi1 pi2
   return finals
@@ -646,8 +647,8 @@ main = do
   args <- getArgs
   let (depth,max,wlist,callpat,prog) = checkArgs (1,False,True,False,"") args
   if callpat
-   then callPatternAnalysis depth max wlist (stripSuffix prog)
-   else transformNondet depth max wlist (stripSuffix prog)
+   then callPatternAnalysis depth max wlist (dropExtension prog)
+   else transformNondet depth max wlist (dropExtension prog)
 
 mainCallError args = error $ unlines
   [ "Illegal arguments: " ++ unwords args
@@ -666,7 +667,9 @@ checkArgs :: (Int,Bool,Bool,Bool,String) -> [String]
           -> (Int,Bool,Bool,Bool,String)
 checkArgs (depth,max,wlist,callpat,prog) args = case args of
   [] -> mainCallError []
-  ("-d":ks:margs) -> let k = maybe (mainCallError args) fst (readNat ks)
+  ("-d":ks:margs) -> let k = case readNat ks of
+                               [(v,_)] -> v
+                               _       -> mainCallError args
                       in checkArgs (k,max,wlist,callpat,prog) margs
   ("-max":margs) -> checkArgs (depth,True,wlist,callpat,prog) margs
   ("-wlist":margs) -> checkArgs (depth,max,True,callpat,prog) margs
@@ -741,7 +744,7 @@ unApply = map unApplyInRule . filter (not . applyRule)
     if f=="apply" && length args == 2
     then Func Def "$" args
     else Func Def f (map unApplyInExp args)
-  
+
 -----------------------------------------------------------------------
 -- Optimize program w.r.t. non-determinism and strictness information
 -- Returns new rules and number of optimization transformations performed

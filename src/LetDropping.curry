@@ -2,7 +2,6 @@
 -- by OrCaseLifter) by let expressions
 
 import TRS
-import Read
 
 letDropping :: [Rule] -> [Rule]
 letDropping rules = filter (not . letRule) (map (insertLetInRule rules) rules)
@@ -27,7 +26,7 @@ insertLetInExp rls (Func Def f args) =
             in if length letrules /= 1
                then error ("LetDropping: incorrect rules for "++f)
                else let (largs,lexp) = head letrules
-                        freenums = readNat (fst (break (=='_') (drop 4 hashp)))
+                        freenums = read (fst (break (=='_') (drop 4 hashp)))
                      in replaceLetCall f args freenums
                                        (insertLetInRule rls (Rule f largs lexp))
 

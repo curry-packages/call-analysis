@@ -1,11 +1,11 @@
 {
     "name": "call-analysis",
-    "version": "2.0.0",
+    "version": "3.0.0",
     "author": "Michael Hanus <mh@informatik.uni-kiel.de>",
     "synopsis": "A call-pattern analysis and transformation tool to improve lazy non-deterministic computations",
     "category": [ "Analysis", "Optimization" ],
     "dependencies": {
-        "flatcurry": ">= 2.0.0"
+        "flatcurry": ">= 3.0.0"
     },
     "compilerCompatibility": {
         "pakcs": ">= 2.0.0",

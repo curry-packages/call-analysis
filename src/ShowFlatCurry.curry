@@ -20,8 +20,8 @@ import FlatCurry.Types
 import FlatCurry.Show
 import MyFlatCurryGoodies
 import FlatCurry.FlexRigid
-import List
-import Char(isAlpha)
+import Data.List
+import Data.Char(isAlpha)
 import Sort(mergeSortBy,leqString)
 
 
@@ -276,4 +276,3 @@ showFuncDeclAsCurry fd =
 showFuncDeclAsFlatCurry fd =
   showCurryFuncDecl (showQNameInModule (funcModule fd))
                     (showQNameInModule (funcModule fd)) True fd
-

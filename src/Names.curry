@@ -4,9 +4,9 @@
 -----------------------------------------------------------------------
 module Names where
 
-import Char (isAlphaNum)
-import List (intersperse)
-import Maybe (fromJust, isJust)
+import Data.Char (isAlphaNum)
+import Data.List (intersperse)
+import Data.Maybe (fromJust, isJust)
 
 genCorrectIdentifier [] = error "genCorrectIdentifier: empty identifier"
 genCorrectIdentifier (c:cs)
@@ -68,4 +68,3 @@ separateAndReplace pred f list = case rest of
     [] -> f x : separateAndReplace pred f xs
     _  -> sep : f x : separateAndReplace pred f xs
  where (sep,rest) = break  (not . pred) list
-
