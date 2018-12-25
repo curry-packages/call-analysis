@@ -13,13 +13,15 @@ import Profile
 import System(getArgs)
 import FileGoodies
 import ReadNumeric(readNat)
-import TableRBT
 import NondetAnalysis
 import LetDropping
 import Directory
 import IO
 import ShowFlatCurry
+
 import qualified FlatCurry.Types as FC
+import qualified  Data.Table.RBTree as Table ( TableRBT, empty, lookup
+                                             , toList, update )
 
 ----------------------------------------------------------------------------
 -- Directories and files to store analysis results
@@ -461,11 +463,11 @@ printProgram adom rules maincalls = do
 -- The current semantic equations are represented as a mapping
 -- from function names into a list of equations (arguments,results)
 -- together with a list of function names on which the equation depends
-type WorkSemInt a = TableRBT String [([a],a,[String])]
+type WorkSemInt a = Table.TableRBT String [([a],a,[String])]
 
 -- Look up the semantic equations of a function in the current semantics:
 fEqsOfWorkSem :: String -> WorkSemInt a -> [([a],a,[String])]
-fEqsOfWorkSem f ws = maybe [] id (lookupRBT f ws)
+fEqsOfWorkSem f ws = maybe [] id (Table.lookup f ws)
 
 -- Process a working list of (abstract) calls to compute an interpretation:
 -- (processWorkList adom lessSpecificEq	showabs trs wl finals)
@@ -486,13 +488,13 @@ processWorkList :: Eq a => ADom a -> (SemEq a->SemEq a->Bool) -> Bool -> [Rule]
 processWorkList _ _ _ _ [] finals =
   -- transform the final semantic into the usual format:
   return (concatMap (\ (f,feqs) -> map (\ (args,res,_) -> Eq f args res) feqs)
-                    (tableRBT2list finals))
+                    (Table.toList finals))
 
 processWorkList adom@(ADom abottom avar acons matchterms _ _ _ applyprim)
        lessSpecificEq withprint trs wl@((fc,eargs) : working) finals = do
   if withprint
    then putStr (" W" ++ show (length wl) ++
-                "/F" ++ show (length (tableRBT2list finals)))
+                "/F" ++ show (length (Table.toList finals)))
    else done
   let fcRules = let rules = funcRules fc trs
                  in if null rules
@@ -517,12 +519,12 @@ processWorkList adom@(ADom abottom avar acons matchterms _ _ _ applyprim)
         then []
         else concatMap (\ (f,feqs) -> concatMap (\ (args,_,deps) ->
                             if fc `elem` deps then [(f,args)] else []) feqs)
-                       (tableRBT2list finals)
+                       (Table.toList finals)
   --putStrLn ("WORKING:" ++
   --          showSemInt adom (map (\ (f,args)->Eq f args abottom) wl))
   --putStrLn ("FINAL:" ++ showSemInt adom
   --     (concatMap (\ (f,feqs) -> map (\ (args,res,_) -> Eq f args res) feqs)
-  --                (tableRBT2list finals)))
+  --                (Table.toList finals)))
   --putStrLn ("Function: " ++ fc)
   --putStrLn ("BETTER: " ++ show betterEquations)
   --putStrLn ("BEST  : " ++ show bestEquations)
@@ -536,7 +538,7 @@ processWorkList adom@(ADom abottom avar acons matchterms _ _ _ applyprim)
   -- insert better (dependency) equations  and delete all less specific ones:
   insertBetterIntoRemaining bettereq wsem =
     let oldfceqs = fEqsOfWorkSem fc wsem
-     in updateRBT fc
+     in Table.update fc
           (bettereq : filter (\oldeq -> not (leqEq oldeq bettereq)) oldfceqs)
           wsem
 
@@ -617,7 +619,7 @@ runFixpointWL adom lessSpecificEq rules maincalls withprint = do
   garbageCollect
   pi1 <- getProcessInfos
   finals <- processWorkList adom lessSpecificEq withprint rules
-                            maincalls (emptyTableRBT leqString)
+                            maincalls (Table.empty leqString)
   pi2 <- getProcessInfos
   printTiming pi1 pi2
   return finals
