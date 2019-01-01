@@ -1,6 +1,6 @@
 -- Queens with set functions
 
-import SetFunctions
+import Control.SetFunctions
 
 insert x []     = [x]
 insert x (y:ys) = x:y:ys ? y:insert x ys
