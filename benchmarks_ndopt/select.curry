@@ -1,4 +1,3 @@
---import AllSolutions
 {-
 -- fast
 select (x:xs) = (x, xs) ? (let (y, ys) = select xs in (y, x:ys))
