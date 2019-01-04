@@ -9,7 +9,6 @@ import TRS
 import List
 import ReadFlatTRS
 import Sort(mergeSortBy,leqString,leqList)
-import Profile
 import System(getArgs)
 import FileGoodies
 import ReadNumeric(readNat)
@@ -19,6 +18,7 @@ import Directory
 import IO
 import ShowFlatCurry
 
+import Debug.Profile
 import qualified FlatCurry.Types as FC
 import qualified  Data.Table.RBTree as Table ( TableRBT, empty, lookup
                                              , toList, update )
