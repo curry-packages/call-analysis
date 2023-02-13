@@ -6,7 +6,7 @@ for analyzing call patterns in Curry programs.
 This analysis is described in this paper:
 
 Michael Hanus:
-Call Pattern Analysis for Functional Logic Programs,
+[Call Pattern Analysis for Functional Logic Programs](https://doi.org/10.1145/1389449.1389459),
 Proc. of the 10th International ACM SIGPLAN Conference on
 Principles and Practice of Declarative Programming (PPDP'08),
 ACM Press, pp. 67-78, 2008
@@ -22,7 +22,7 @@ on Logic Programming (ICLP 2012),
 Leibniz International Proceedings in Informatics (LIPIcs),
 vol. 17, pp. 130-143, 2012
 
-After installing this package, use the command `curry-calls`
+After installing this package, use the command `curry-ndopt`
 to analyze and transform your program.
 
 
@@ -30,16 +30,16 @@ Remarks:
 
 * The implementation contains an analysis with depth-bounded terms.
   The default depth bound is 2. It can be changed to <k> by executing
-  the command `curry-calls -d <k> prog`.
+  the command `curry-ndopt -d <k> prog`.
 
 * Currently, the main program must contain all rules, i.e.,
   no modules are imported for the program analysis.
   In particular, primitive functions must be also defined
   in the program file (compare `benchmarks_callpattern/readfile.curry`).
 
-* For examples containing higher-order applications
+* In programs containing higher-order applications
   (compare `benchmarks_callpattern/mapadddouble.curry`), rules to define
-  an higher-order application operator "apply" are implicitly
+  an higher-order application operator `apply` are implicitly
   generated.
 
 

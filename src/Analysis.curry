@@ -2,49 +2,55 @@
 --- Fixpoint analyzer for call patterns
 ---
 --- @author Michael Hanus
---- @version May 2017
+--- @version February 2023
 ----------------------------------------------------------------------------
 
-import TRS
-import List
-import ReadFlatTRS
-import Sort(mergeSortBy,leqString,leqList)
-import System(getArgs)
-import FileGoodies
-import ReadNumeric(readNat)
-import NondetAnalysis
-import LetDropping
-import Directory
-import IO
-import ShowFlatCurry
+import Data.List ( intercalate, nub, replace, sort, sortBy )
+import Numeric(readNat)
+--import Sort(sortBy,leqString,leqList)
+import System.Environment ( getArgs )
+import System.IO ( hFlush, stdout )
+
+import System.Directory ( createDirectory, doesDirectoryExist )
+import System.FilePath  ( dropExtension, splitFileName, takeDirectory )
+--import IO
+import FlatCurry.ShowIntMod
 
 import Debug.Profile
 import qualified FlatCurry.Types as FC
 import qualified  Data.Table.RBTree as Table ( TableRBT, empty, lookup
                                              , toList, update )
 
+import LetDropping
+import NondetAnalysis
+import ReadFlatTRS
+import TRS
+
 ----------------------------------------------------------------------------
 -- Directories and files to store analysis results
+analysisDir :: String
 analysisDir = ".curry/analysis"
 
 -- Create analysis directory for a given base file name, if necessary.
 createAnalysisDir :: String -> IO ()
 createAnalysisDir base = do
-  let anadir = dirName base ++ "/" ++ analysisDir
+  let anadir = takeDirectory base ++ "/" ++ analysisDir
   exanadir <- doesDirectoryExist anadir
-  if exanadir then done
+  if exanadir then return ()
               else createDirectory anadir
 
 -- Nondet info file for a given module
+ndInfoFileName :: String -> String
 ndInfoFileName file =
-  let (dir,base) = splitDirectoryBaseName file
-      basemod = stripSuffix base
+  let (dir,base) = splitFileName file
+      basemod = dropExtension base
    in dir ++ "/" ++ analysisDir ++ "/" ++ basemod ++ ".ndinfo"
 
 -- strictness info file for a given module
+strictInfoFileName :: String -> String
 strictInfoFileName file =
-  let (dir,base) = splitDirectoryBaseName file
-      basemod = stripSuffix base
+  let (dir,base) = splitFileName file
+      basemod = dropExtension base
    in dir ++ "/" ++ analysisDir ++ "/" ++ basemod ++ ".strictinfo"
 
 ----------------------------------------------------------------------------
@@ -57,7 +63,6 @@ strictInfoFileName file =
 -- acons     : maps a constructor and abstract terms into an abstract term
 -- matchterms: abstract matching of terms
 -- domleq    : information ordering on abstract terms
--- ordleq    : "less-or-equal" ordering on abstract terms (to sort sets)
 -- showaterm : show an abstract term
 -- applyprim : possible application of predefined operations
 --             (Nothing: not a predefined operation, Just abstract_result)
@@ -67,26 +72,21 @@ data ADom a = ADom a
                    (String -> [a] -> a)
                    ([Term] -> [a] -> Maybe (Sub a))
                    (a -> a -> Bool)
-                   (a -> a -> Bool)
                    (a -> String)
                    (String -> [a] -> Maybe a)
 
 -- Returns bottom element of abstract domain
 adomBottom :: ADom a -> a
-adomBottom (ADom abottom _ _ _ _ _ _ _) = abottom
+adomBottom (ADom abottom _ _ _ _ _ _) = abottom
 
 -- Returns "show" operation of abstract domain
 adomShow :: ADom a -> (a -> String)
-adomShow (ADom _ _ _ _ _ _ ashow _) = ashow
-
--- Returns "less-or-equal" operation of abstract domain
-adomLeq :: ADom a -> (a -> a -> Bool)
-adomLeq (ADom _ _ _ _ _ aleq _ _) = aleq
+adomShow (ADom _ _ _ _ _ ashow _) = ashow
 
 -- map a function applied to constructor terms
 -- into an abstract abstract call w.r.t. a given domain
 abstractCall :: ADom a -> (String,[Term]) -> (String,[a])
-abstractCall (ADom _ avar acons _ _ _ _ _) (f,cargs) = (f, map cons2aterm cargs)
+abstractCall (ADom _ avar acons _ _ _ _) (f,cargs) = (f, map cons2aterm cargs)
  where
   -- map a constructor term into abstract term
   cons2aterm (Var v) = avar v
@@ -96,7 +96,7 @@ abstractCall (ADom _ avar acons _ _ _ _ _) (f,cargs) = (f, map cons2aterm cargs)
 ----------------------------------------------------------------------------
 -- Semantic equation (part of an interpretation): f args = result
 data SemEq aterm = Eq String [aterm] aterm
- deriving Eq
+ deriving (Eq, Ord)
 
 -- (Abstract) Interpretation: list of semantic equations
 type SemInt aterm = [SemEq aterm]
@@ -109,7 +109,7 @@ type Sub a = [(Int,a)]
 
 -- Constructor terms with bottom elements:
 data CTerm = CBot | CVar Int | CCons String [CTerm]
- deriving Eq
+ deriving (Eq, Ord)
 
 -- pairwise matching of a list of patterns against a list of terms
 matchCTerms :: [Term] -> [CTerm] -> Maybe (Sub CTerm)
@@ -138,30 +138,18 @@ lessCSpecific (CCons c1 args1) t2 = case t2 of
   CCons c2 args2 -> c1==c2 && all (uncurry lessCSpecific) (zip args1 args2)
   _              -> False
 
--- "less-or-equal" comparison to order constructor terms (used to sort sets
--- of contructor terms):
-leqCTerm :: CTerm -> CTerm -> Bool
-leqCTerm CBot _ = True
-leqCTerm (CVar _) CBot = False
-leqCTerm (CVar v1) (CVar v2) = v1 <= v2
-leqCTerm (CVar _) (CCons _ _) = True
-leqCTerm (CCons c1 args1) t2 = case t2 of
-  CCons c2 args2 -> if c1==c2 then leqList leqCTerm args1 args2
-                              else leqString c1 c2
-  _              -> False
-
 -- show a constructor term
 showCTerm :: CTerm -> String
 showCTerm CBot = "_"
 showCTerm (CVar i) = 'x' : show i
 showCTerm (CCons f []) = f
 showCTerm (CCons f args@(_:_)) =
-  f ++ "(" ++ concat (intersperse "," (map showCTerm args)) ++ ")"
+  f ++ "(" ++ intercalate "," (map showCTerm args) ++ ")"
 
 -- The structure of the concrete domain:
 concreteDom :: ADom CTerm
 concreteDom = ADom CBot (error "Cannot handle free variables") CCons
-                   matchCTerms lessCSpecific leqCTerm showCTerm (\_ _ -> Nothing)
+                   matchCTerms lessCSpecific showCTerm (\_ _ -> Nothing)
 
 
 ----------------------------------------------------------------------------
@@ -169,7 +157,7 @@ concreteDom = ADom CBot (error "Cannot handle free variables") CCons
 
 -- depth-k terms are constructor terms with cut variables:
 data DTerm = DBot | DCons String [DTerm] | CutVar
- deriving Eq
+ deriving (Eq, Ord)
 
 -- pairwise matching of a list of patterns against a list of terms
 matchDTerms :: [Term] -> [DTerm] -> Maybe (Sub DTerm)
@@ -209,35 +197,22 @@ lessDSpecific (DCons c1 args1) t2 = case t2 of
   DCons c2 args2 -> c1==c2 && all (uncurry lessDSpecific) (zip args1 args2)
   _              -> False
 
--- "less-or-equal" comparison to order depth-k terms (used to sort sets
--- of abstract terms):
-leqDTerm :: DTerm -> DTerm -> Bool
-leqDTerm DBot _ = True
-leqDTerm CutVar DBot = False
-leqDTerm CutVar CutVar = True
-leqDTerm CutVar (DCons _ _) = False
-leqDTerm (DCons c1 args1) t2 = case t2 of
-  DCons c2 args2 -> if c1==c2 then leqList leqDTerm args1 args2
-                              else leqString c1 c2
-  DBot           -> False
-  CutVar         -> True
-
 -- Abstract application of a primitive operation to abstract terms.
 -- The result is Nothing if this application is not defined, e.g.,
 -- becuase the operation is not a primitive one.
 applyPrimDTerm :: String -> [DTerm] -> Maybe DTerm
 applyPrimDTerm f args
- | f `elem` allStrictOps
+  | f `elem` allStrictOps
   = if DBot `elem` args
-    then Just DBot   -- these primitive operations are strict in all arguments
-    else Just CutVar -- otherwise we do not know anything
- | f `elem` fstP2StrictOps
+      then Just DBot   -- these primitive operations are strict in all arguments
+      else Just CutVar -- otherwise we do not know anything
+  | f `elem` fstP2StrictOps
   = if head args == DBot
-    then Just DBot  -- strict in first argument
-    else Just (args!!1) -- otherwise it is as most defined as second argument
- | f == "failed"
+      then Just DBot  -- strict in first argument
+      else Just (args!!1) -- otherwise it is as most defined as second argument
+  | f == "failed"
   = Just DBot -- result of failed is always undefined
- | otherwise = Nothing
+  | otherwise = Nothing
  where
   -- operations strict in all arguments
   allStrictOps = ["+","-","*","mod","div","<","<=",">",">=","==","/=",
@@ -247,22 +222,22 @@ applyPrimDTerm f args
 
 -- show a depth-k term
 showDTerm :: DTerm -> String
-showDTerm DBot = "_"
-showDTerm CutVar = "*"
+showDTerm DBot         = "_"
+showDTerm CutVar       = "*"
 showDTerm (DCons f []) = f
 showDTerm (DCons f args@(x:xs))
  | f == ":" && length xs == 1 = -- format list constructor:
    showDTerm x ++ ":" ++ showDTerm (head xs)
  | take 2 f == "(," = -- format tuple constructors:
-   "(" ++ concat (intersperse "," (map showDTerm args)) ++ ")"
+   "(" ++ intercalate "," (map showDTerm args) ++ ")"
  | otherwise =
-   f ++ "(" ++ concat (intersperse "," (map showDTerm args)) ++ ")"
+   f ++ "(" ++ intercalate "," (map showDTerm args) ++ ")"
 
 -- The structure of the depth-k domain (where the depth is given as an
 -- argument):
 depthDom :: Int -> ADom DTerm
 depthDom k = ADom DBot (const CutVar) (consDTerm k) matchDTerms lessDSpecific
-                  leqDTerm showDTerm applyPrimDTerm
+                  showDTerm applyPrimDTerm
 
 
 ------------------------------------------------------------------------------
@@ -276,17 +251,11 @@ eqSemInt = (==)
 -- The first argument is some ordering on terms (compatible with the
 -- information ordering on terms). An equation is not inserted
 -- if it is already there, i.e., the interpretation is managed as a set.
-insertSemEq :: Eq a => (a->a->Bool) -> SemEq a -> SemInt a -> SemInt a
-insertSemEq _ x []     = [x]
-insertSemEq dcmp x (y:ys) | x==y               = y : ys
-                          | lessSemEq dcmp x y = x : y : ys
-                          | otherwise          = y : insertSemEq dcmp x ys
-
--- Extend an ordering on terms to an ordering on semantic equations.
-lessSemEq :: Eq a => (a->a->Bool) -> SemEq a -> SemEq a -> Bool
-lessSemEq dcmp (Eq f1 args1 v1) (Eq f2 args2 v2)
-  | f1==f2    = leqList dcmp (args1++[v1]) (args2++[v2])
-  | otherwise = leqString f1 f2
+insertSemEq :: Ord a => SemEq a -> SemInt a -> SemInt a
+insertSemEq x []     = [x]
+insertSemEq x (y:ys) | x == y    = y : ys
+                     | x <= y    = x : y : ys
+                     | otherwise = y : insertSemEq x ys
 
 -- Generic ordered insertion of semantic equations into an interpretation
 -- where existing equations with less information are removed from the
@@ -295,15 +264,15 @@ lessSemEq dcmp (Eq f1 args1 v1) (Eq f2 args2 v2)
 -- First argument: ordering relation on abstract terms (used to order
 --                 all equations of the interpretation)
 -- Second argument: less-specific ordering on equations
-updateSemEq :: Eq a => (a->a->Bool) -> (SemEq a->SemEq a->Bool)
-                    -> SemEq a -> SemInt a -> SemInt a
-updateSemEq _ _ x []     = [x]
-updateSemEq dcmp lessSpecificEq x (y:ys)
+updateSemEq :: Ord a => (SemEq a -> SemEq a -> Bool)
+                     -> SemEq a -> SemInt a -> SemInt a
+updateSemEq _              x []     = [x]
+updateSemEq lessSpecificEq x (y:ys)
  | x == y             = y : ys
- | lessSpecificEq y x = updateSemEq dcmp lessSpecificEq x ys
+ | lessSpecificEq y x = updateSemEq lessSpecificEq x ys
  | lessSpecificEq x y = y : ys
- | lessSemEq dcmp x y = x : y : ys
- | otherwise          = y : updateSemEq dcmp lessSpecificEq x ys
+ | x <= y             = x : y : ys
+ | otherwise          = y : updateSemEq lessSpecificEq x ys
 
 -- Is semantic equation e1 less specific than e2 w.r.t. some
 -- call pattern? The first argument is the information ordering on terms.
@@ -332,7 +301,7 @@ lessSpecificEqResult lessSpecific (Eq f1 args1 v1) (Eq f2 args2 v2) =
 -- result: transformed interpretation
 transformInt :: Eq a => ADom a -> (SemEq a -> SemInt a -> SemInt a)
                      -> [Rule] -> SemInt a -> SemInt a -> SemInt a
-transformInt (ADom abottom avar acons matchterms _ _ _ applyprim)
+transformInt (ADom abottom avar acons matchterms _ _ applyprim)
              insertsem trs mains int =
   foldr insertsem mains
         (concatMap (\ (Eq fi argsi _) ->
@@ -384,7 +353,7 @@ runFixpoint adom insertsem rules mainacalls withprint semeq = do
   let trm = transformInt adom insertsem rules
                          (foldr insertsem [] (map main2int mainacalls))
   --printProgram rules maincalls
-  if withprint then done else putStr "Iterating:"
+  if withprint then return () else putStr "Iterating:"
   garbageCollect
   pi1 <- getProcessInfos
   fpsem <- computeFixpoint withprint 0 (showSemInt adom) semeq trm []
@@ -411,18 +380,18 @@ computeFixpoint withprint n prt eq f v = do
 -- (containing a show function for semantic elements)
 showSemInt :: ADom a -> SemInt a -> String
 showSemInt adom eqs =
-  let semIntLine = "{" ++ concat (intersperse ", " (map showEq eqs)) ++ "}"
+  let semIntLine = "{" ++ intercalate ", " (map showEq eqs) ++ "}"
    in show (length eqs) ++ " semantic equations:\n" ++
       if length semIntLine < 80
       then semIntLine
-      else "{" ++ concat (intersperse ",\n " (map showEq eqs)) ++ "}"
+      else "{" ++ intercalate ",\n " (map showEq eqs) ++ "}"
  where
   showe = adomShow adom
 
   showEq (Eq f args r) =
     f ++ (if null args
           then []
-          else '(' : concat (intersperse "," (map showe args)) ++ ")")
+          else '(' : intercalate "," (map showe args) ++ ")")
       ++ " = " ++ showe r
 
 -- get standard main call (i.e., main(var1,...,varn)) from the rules:
@@ -435,7 +404,7 @@ getMainCall rules = ("main", genArgs (arityOf "main" rules))
 -- i \in [1..n] the call f(var_1,...,var_{i-1},bottom,var_{i+1},...,var_n))
 -- from the rules:
 genMainCalls :: ADom a -> [Rule] -> [(String,[a])]
-genMainCalls (ADom abot avar _ _ _ _ _ _) rules =
+genMainCalls (ADom abot avar _ _ _ _ _) rules =
   concatMap genStrictCalls (allFunctions rules)
  where
   genStrictCalls (f,n) = map genStrictCall [1..n]
@@ -447,7 +416,7 @@ printProgram :: ADom a -> [Rule] -> [(String,[a])] -> IO ()
 printProgram adom rules maincalls = do
   putStrLn $ "\nRewrite rules:\n\n" ++ showTRS rules
   putStrLn $ "\nMain calls: " ++
-             concat (intersperse ", " (map showATermCall maincalls))
+             intercalate ", " (map showATermCall maincalls)
   putStrLn ""
  where
   showATerm = adomShow adom
@@ -455,7 +424,7 @@ printProgram adom rules maincalls = do
   showATermCall (f,args) =
     f ++ (if null args
           then []
-          else '(' : concat (intersperse "," (map showATerm args)) ++ ")")
+          else '(' : intercalate "," (map showATerm args) ++ ")")
 
 ------------------------------------------------------------------------------
 -- Fixpoint computation based on working lists.
@@ -490,12 +459,12 @@ processWorkList _ _ _ _ [] finals =
   return (concatMap (\ (f,feqs) -> map (\ (args,res,_) -> Eq f args res) feqs)
                     (Table.toList finals))
 
-processWorkList adom@(ADom abottom avar acons matchterms _ _ _ applyprim)
+processWorkList adom@(ADom abottom avar acons matchterms _ _ applyprim)
        lessSpecificEq withprint trs wl@((fc,eargs) : working) finals = do
   if withprint
    then putStr (" W" ++ show (length wl) ++
                 "/F" ++ show (length (Table.toList finals)))
-   else done
+   else return ()
   let fcRules = let rules = funcRules fc trs
                  in if null rules
                     then error ("Rules of operation '"++fc++"' not found!")
@@ -548,17 +517,17 @@ processWorkList adom@(ADom abottom avar acons matchterms _ _ _ applyprim)
   --insertIfBetterCall :: (String,[a]) -> [(String,[a])] -> [(String,[a])]
   insertIfBetterCall eq wlist =
     if any (leqCall eq) wlist
-    then wlist
-    else eq : filter (\e -> not (leqCall e eq)) wlist
+      then wlist
+      else eq : filter (\e -> not (leqCall e eq)) wlist
    where
-    leqCall (f,args) (f',args') = --f==f' && leqOnList domleq args args'
+    leqCall (f,args) (f',args') =
       lessSpecificEq (Eq f args abottom) (Eq f' args' abottom)
 
   -- is a given abstract call more specific than all equations
   -- in the current final interpretation?
   --isBetterCall :: (String,[a]) -> Bool
   isBetterCall (f,args) =
-    not (any (\ (args',_,_) -> --leqOnList domleq args args'
+    not (any (\ (args',_,_) ->
                   lessSpecificEq (Eq f args abottom) (Eq f args' abottom))
              (fEqsOfWorkSem f finals))
 
@@ -570,7 +539,7 @@ processWorkList adom@(ADom abottom avar acons matchterms _ _ _ applyprim)
 
   -- compare given equation: left-hand sides and right-hand sides
   -- in leq relation on terms?
-  leqEq (args,r,_) (args',r',_) = --leqOnList domleq args args' && domleq r r'
+  leqEq (args,r,_) (args',r',_) =
     lessSpecificEq (Eq fc args r) (Eq fc args' r')
 
   -- compare given equation and their dependencies:
@@ -578,11 +547,6 @@ processWorkList adom@(ADom abottom avar acons matchterms _ _ _ applyprim)
   -- subsumed?
   leqEqDep (args,r,ds) (args',r',ds') =
     lessSpecificEq (Eq fc args r) (Eq fc args' r') && all (`elem` ds') ds
-
-  -- extend term comparison on list of terms
-  leqOnList :: (a -> a -> Bool) -> [a] -> [a] -> Bool
-  leqOnList _ [] [] = True
-  leqOnList leq (x:xs) (y:ys) = leq x y && leqOnList leq xs ys
 
   applyRule (largs,rhs) =
     maybe ([],[])
@@ -612,20 +576,21 @@ processWorkList adom@(ADom abottom avar acons matchterms _ _ _ applyprim)
 
 -- run a fixpoint computation with working lists starting form a given
 -- list of abstract function calls:
-runFixpointWL :: Eq a => ADom a -> (SemEq a->SemEq a->Bool) -> [Rule]
+runFixpointWL :: Eq a => ADom a -> (SemEq a -> SemEq a -> Bool) -> [Rule]
               -> [(String,[a])] -> Bool
               -> IO (SemInt a)
 runFixpointWL adom lessSpecificEq rules maincalls withprint = do
   garbageCollect
   pi1 <- getProcessInfos
   finals <- processWorkList adom lessSpecificEq withprint rules
-                            maincalls (Table.empty leqString)
+                            maincalls (Table.empty (<=))
   pi2 <- getProcessInfos
   printTiming pi1 pi2
   return finals
 
 -- show timing w.r.t. some process infos at the start and stop point
 -- of a computation:
+printTiming :: [(ProcessInfo,Int)] -> [(ProcessInfo,Int)] -> IO ()
 printTiming startPInfos stopPInfos = do
   putStrLn $ "Run time:            "
              ++ (showInfoDiff startPInfos stopPInfos RunTime) ++ " msec."
@@ -644,13 +609,15 @@ printTiming startPInfos stopPInfos = do
 --- Main calls to the (abstract) interpreters:
 ------------------------------------------------------------------------------
 -- main function to call the analyser as a saved state:
+main :: IO ()
 main = do
   args <- getArgs
   let (depth,max,wlist,callpat,prog) = checkArgs (1,False,True,False,"") args
   if callpat
-   then callPatternAnalysis depth max wlist (stripSuffix prog)
-   else transformNondet depth max wlist (stripSuffix prog)
+    then callPatternAnalysis depth max wlist (dropExtension prog)
+    else transformNondet depth max wlist (dropExtension prog)
 
+mainCallError :: [String] -> _
 mainCallError args = error $ unlines
   [ "Illegal arguments: " ++ unwords args
   , ""
@@ -668,7 +635,9 @@ checkArgs :: (Int,Bool,Bool,Bool,String) -> [String]
           -> (Int,Bool,Bool,Bool,String)
 checkArgs (depth,max,wlist,callpat,prog) args = case args of
   [] -> mainCallError []
-  ("-d":ks:margs) -> let k = maybe (mainCallError args) fst (readNat ks)
+  ("-d":ks:margs) -> let k = case readNat ks of
+                               [(n,"")] -> n
+                               _        -> mainCallError args
                       in checkArgs (k,max,wlist,callpat,prog) margs
   ("-max":margs) -> checkArgs (depth,True,wlist,callpat,prog) margs
   ("-wlist":margs) -> checkArgs (depth,max,True,callpat,prog) margs
@@ -684,14 +653,13 @@ callPatternAnalysis termdepth keepmax withwlist modname = do
     let absdom = depthDom termdepth
         maincalls = [abstractCall absdom (getMainCall rules)]
         lessSpecificEq = lessSpecificEqCallPattern lessDSpecific
-        leqterm = adomLeq absdom
     printProgram absdom rules maincalls
-    let seminsertion = if keepmax then updateSemEq leqterm lessSpecificEq
-                                  else insertSemEq leqterm
+    let seminsertion = if keepmax then updateSemEq lessSpecificEq
+                                  else insertSemEq
     fpsem <- if not withwlist
              then runFixpoint absdom seminsertion rules maincalls False eqSemInt
              else runFixpointWL absdom lessSpecificEq rules maincalls False
-    putStrLn (showSemInt absdom (mergeSortBy (lessSemEq leqDTerm) fpsem))
+    putStrLn (showSemInt absdom (sort fpsem))
 
 -- Non-determinism transformation by strictness/overlapping analysis
 transformNondet :: Int -> Bool -> Bool -> String -> IO ()
@@ -700,14 +668,13 @@ transformNondet termdepth keepmax withwlist modname = do
     let absdom = depthDom termdepth
         maincalls = genMainCalls absdom rules
         lessSpecificEq = lessSpecificEqResult lessDSpecific
-        leqterm = adomLeq absdom
     printProgram absdom rules maincalls
-    let seminsertion = if keepmax then updateSemEq leqterm lessSpecificEq
-                                  else insertSemEq leqterm
+    let seminsertion = if keepmax then updateSemEq lessSpecificEq
+                                  else insertSemEq
     fpsem <- if not withwlist
              then runFixpoint absdom seminsertion rules maincalls False eqSemInt
              else runFixpointWL absdom lessSpecificEq rules maincalls False
-    putStrLn (showSemInt absdom (mergeSortBy (lessSemEq leqterm) fpsem))
+    putStrLn (showSemInt absdom (sort fpsem))
     let strinfos = sortFuncInfos (extractStrictness absdom fpsem)
     putStrLn ('\n' : showStrictness strinfos)
     createAnalysisDir modname
@@ -724,6 +691,9 @@ transformNondet termdepth keepmax withwlist modname = do
               (unlines (map ("import "++) (filter (/="Prelude") imports)) ++
                concatMap showDataDeclAsCurry typedecls ++ newprogtxt)
     putStrLn $ "Number of performed optimizations: " ++ show numopts
+ where
+  showDataDeclAsCurry fd =
+    showCurryDataDecl (FC.showQNameInModule (dataModule fd)) fd
 
 -----------------------------------------------------------------------
 -- Remove all occurrences of generated apply operation in a program
@@ -801,48 +771,54 @@ extractStrictness adom aint = map checkStrictArgs allfuncs
 
 -- Sort list of operation information by function names:
 sortFuncInfos :: [(String,a)] -> [(String,a)]
-sortFuncInfos = mergeSortBy (\i1 i2 -> fst i1 <= fst i2)
+sortFuncInfos = sortBy (\i1 i2 -> fst i1 <= fst i2)
 
 -- Show strictness information of all functions a little bit formatted:
 showStrictness :: [(String,[Int])] -> String
 showStrictness info =
   "Computed strictness information:\n"++
   unlines (map (\ (f,sargs) -> if null sargs
-                               then f++" not strict"
-                               else f++" strict at "++
-                                    concat (intersperse "," (map show sargs)))
+                                 then f ++ " not strict"
+                                 else f ++ " strict at " ++
+                                      intercalate "," (map show sargs))
                info)
+
+dataModule :: FC.TypeDecl -> String
+dataModule (FC.Type tname _ _ _) = fst tname
+dataModule (FC.TypeSyn tname _ _ _) = fst tname
+dataModule (FC.TypeNew tname _ _ _) = fst tname
 
 ------------------------------------------------------------------------------
 -- operations for benchmarking
 
 -- define where to look for the benchmark programs:
-prog2DirFile p = "benchmarks_callpattern/"++p
+prog2DirFile :: String -> String
+prog2DirFile = ("benchmarks_callpattern/" ++)
 
 -- benchmark different interpretation methods:
+bench :: Int -> String -> IO ()
 bench k file = do
   putStrLn (take 70 (repeat '='))
   rules <- readRules (prog2DirFile file)
   let absdom = depthDom k
       maincalls = [abstractCall absdom (getMainCall rules)]
-      leqterm = adomLeq absdom
   printProgram absdom rules maincalls
   putStrLn $ "\nTotal number of rules: " ++ show (length rules)
   putStrLn "\nRunning simple call analysis..."
-  semsimple <- runFixpoint absdom (insertSemEq leqterm)
+  semsimple <- runFixpoint absdom insertSemEq
                            rules maincalls False eqSemInt
   putStrLn (showSemInt absdom semsimple)
   putStrLn "\nRunning call analysis with ordered insertion..."
-  semord <- runFixpoint absdom (updateSemEq leqterm
+  semord <- runFixpoint absdom (updateSemEq
                                   (lessSpecificEqCallPattern lessDSpecific))
                         rules maincalls False eqSemInt
   putStrLn (showSemInt absdom semord)
   putStrLn "\nRunning call analysis with working lists..."
   semwl <- runFixpointWL absdom (lessSpecificEqCallPattern lessDSpecific)                                 rules maincalls False >>=
-           return . mergeSortBy (lessSemEq leqterm)
+           return . sort
   if semord==semwl
-   then done
-   else putStrLn (showSemInt absdom semwl)
+    then return ()
+    else putStrLn (showSemInt absdom semwl)
 
 -- run the benchmarks of the examples directory:
 runBench :: IO ()

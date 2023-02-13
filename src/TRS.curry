@@ -2,9 +2,9 @@
 
 module TRS where
 
-import List
-import Char
-import Names
+import Data.List
+
+import Names ( genCorrectIdentifier )
 
 ----------------------------------------------------------------------------
 -- definition of basic terms
@@ -52,7 +52,7 @@ showBasicTerm withp (Func _ f args@(_:_:_))
   | f == "LET"    = encloseInPar withp ("let\n" ++ showLetExp args)
   | f == "LAMBDA" = encloseInPar withp (showLambdaExp args)
   | take 2 f == "(,"
-   = '(' : concat (intersperse "," (map (showBasicTerm False) args)) ++ ")"
+   = '(' : intercalate "," (map (showBasicTerm False) args) ++ ")"
   | not (isAlpha (head f)) && length args == 2
    = encloseInPar withp
                   (showBasicTerm True (head args) ++ ' ':f ++
@@ -93,15 +93,14 @@ showRule (Rule f args rhs) =
   showBasicTerm False (Func Def f args) ++ " = " ++ showBasicTerm False rhs ++
   if null extraVars then ""
   else " where " ++
-       concat (intersperse ","
-                  (map (\i -> showBasicTerm False (Var i)) extraVars)) ++
+       intercalate "," (map (\i -> showBasicTerm False (Var i)) extraVars) ++
        " free"
  where
   extraVars = varsOf rhs \\ concatMap varsOf args
 
 -- show a TRS
 showTRS :: [Rule] -> String
-showTRS = concat . intersperse "\n" . map showRule . filter isShowRule
+showTRS = intercalate "\n" . map showRule . filter isShowRule
  where
    isShowRule (Rule f _ _) = f `notElem` ["?"]
 

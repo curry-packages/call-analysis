@@ -1,15 +1,17 @@
 -----------------------------------------------------------------------------
 -- A few base functions for analysing dependencies in FlatCurry programs:
 --
--- Michael Hanus, December 2018
+-- Michael Hanus, February 2023
 -----------------------------------------------------------------------------
 
-module Dependency(analyseWithDependencies, indirectlyDependent,
-                  funcsInExpr, callsDirectly, externalDependent,
-                  dependencyGraphs, localDependencyGraphs) where
+module Dependency
+  ( analyseWithDependencies, indirectlyDependent
+  , funcsInExpr, callsDirectly, externalDependent
+  , dependencyGraphs, localDependencyGraphs
+  ) where
 
-import Sort(leqString)
-import Maybe(fromJust)
+import Prelude hiding ( empty )
+import Data.Maybe     ( fromJust )
 
 import FlatCurry.Types
 import Data.Set.RBTree ( SetRBT, member, empty, insert, toList, union )
@@ -144,7 +146,7 @@ unionMap f = foldr union emptySet . map f
 
 emptySet = empty leqQName
 
-leqQName (m1,n1) (m2,n2) = leqString (m1++('.':n1)) (m2++('.':n2))
+leqQName (m1,n1) (m2,n2) = m1 ++ '.': n1 <= m2 ++ '.' : n2
 
 -- end of Dependency
 

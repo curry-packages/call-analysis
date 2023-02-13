@@ -3,7 +3,7 @@ infixl 1 `bind`,`seq`
 conc [] ys = ys
 conc (x:xs) ys = x : conc xs ys
 
-anyval = x where x free
+anyval = failed
 
 getChar w = (anyval,w)
 

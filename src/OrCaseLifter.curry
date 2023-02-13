@@ -7,15 +7,15 @@
 --- by auxiliary functions.
 ---
 --- @author Michael Hanus
---- @version May 2017
+--- @version February 2023
 ------------------------------------------------------------------------------
 
 
-module OrCaseLifter(liftNestedOrCase) where
+module OrCaseLifter ( liftNestedOrCase )
+ where
 
+import Data.List ( nub )
 import FlatCurry.Types as FC
-import List
-
 
 --- Lift nested or/case expressions by replacing them by auxiliary functions.
 --- The names of the new auxiliary functions are prefixed by a string

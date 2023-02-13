@@ -2,7 +2,7 @@
 -- by OrCaseLifter) by let expressions
 
 import TRS
-import Read
+import Numeric ( readNat )
 
 letDropping :: [Rule] -> [Rule]
 letDropping rules = filter (not . letRule) (map (insertLetInRule rules) rules)
@@ -21,15 +21,18 @@ insertLetInExp rls (Func Cons c args) =
   Func Cons c (map (insertLetInExp rls) args)
 insertLetInExp rls (Func Def f args) =
   let (_,hashp) = break (=='#') f
-   in if null hashp || take 4 hashp /= "#LET"
-      then Func Def f (map (insertLetInExp rls) args)
-      else let letrules = funcRules f rls
+  in if null hashp || take 4 hashp /= "#LET"
+       then Func Def f (map (insertLetInExp rls) args)
+       else let letrules = funcRules f rls
             in if length letrules /= 1
-               then error ("LetDropping: incorrect rules for "++f)
-               else let (largs,lexp) = head letrules
-                        freenums = readNat (fst (break (=='_') (drop 4 hashp)))
-                     in replaceLetCall f args freenums
-                                       (insertLetInRule rls (Rule f largs lexp))
+                 then error $ "LetDropping: incorrect rules for " ++ f
+                 else let (largs,lexp) = head letrules
+                          freenums = case readNat (fst (break (=='_')
+                                                          (drop 4 hashp))) of
+                                       [(n,"")] -> n
+                                       _ -> error $ "readNat in insertLetInExp"
+                      in replaceLetCall f args freenums
+                           (insertLetInRule rls (Rule f largs lexp))
 
 replaceLetCall f args freenums (Rule _ largs lexp) =
   if length args == length largs

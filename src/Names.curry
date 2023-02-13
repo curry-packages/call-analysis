@@ -4,11 +4,12 @@
 -----------------------------------------------------------------------
 module Names where
 
-import Char (isAlphaNum)
-import List (intersperse)
-import Maybe (fromJust, isJust)
+import Data.Char  ( isAlphaNum )
+import Data.List  ( intercalate )
+import Data.Maybe ( fromJust, isJust )
 
-genCorrectIdentifier [] = error "genCorrectIdentifier: empty identifier"
+genCorrectIdentifier :: String -> String
+genCorrectIdentifier []     = error "genCorrectIdentifier: empty identifier"
 genCorrectIdentifier (c:cs)
   | all opChar (c:cs) = c:cs
   | otherwise         = replaceNonIdChars "" "" (c:cs)
@@ -55,7 +56,7 @@ replaceNonIdChars pfxNonOp pfxOp str = case strings of
   [s] -> if isAlphaNum (head str)
             then pfxNonOp ++ s
             else pfxOp    ++ s
-  _   -> pfxOp ++ concat (intersperse "_" strings)
+  _   -> pfxOp ++ intercalate "_" strings
  where strings       = separateAndReplace isIdentChar showOpChar str
        isIdentChar c = isAlphaNum c || c == '_' || c == '\''
 
