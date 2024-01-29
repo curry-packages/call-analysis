@@ -1,17 +1,16 @@
 {
     "name": "call-analysis",
-    "version": "3.0.0",
+    "version": "3.2.0",
     "author": "Michael Hanus <mh@informatik.uni-kiel.de>",
     "synopsis": "A call-pattern analysis and transformation tool to improve lazy non-deterministic computations",
     "category": [ "Analysis", "Optimization" ],
     "dependencies": {
-        "base"         : ">= 3.0.0, < 4.0.0",
+        "base"         : ">= 3.2.0, < 4.0.0",
         "directory"    : ">= 3.0.0, < 4.0.0",
         "flatcurry"    : ">= 3.0.0, < 4.0.0",
         "filepath"     : ">= 3.0.0, < 4.0.0",
         "profiling"    : ">= 3.0.0, < 4.0.0",
         "redblacktree" : ">= 3.0.0, < 4.0.0",
-        "setfunctions" : ">= 3.0.0, < 4.0.0",
         "showflatcurry": ">= 3.0.0, < 4.0.0"
     },
     "license": "BSD-3-Clause",
@@ -20,7 +19,7 @@
                     "main": "Analysis"
                   },
      "source": {
-        "git": "https://git.ps.informatik.uni-kiel.de/curry-packages/call-analysis.git",
+        "git": "https://github.com/curry-packages/call-analysis.git",
         "tag": "$version"
     }
 }
