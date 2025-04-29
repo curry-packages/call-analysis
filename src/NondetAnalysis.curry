@@ -1,3 +1,5 @@
+module NondetAnalysis where
+
 import Nondeterminism
 import FlatCurry.Types
 import FlatCurry.Read

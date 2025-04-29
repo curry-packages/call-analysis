@@ -6,7 +6,8 @@
 -- Michael Hanus, March 2012
 ------------------------------------------------------------------------------
 
-module Nondeterminism(analyseNondeterminism,analyseSetValued) where
+module Nondeterminism ( analyseNondeterminism, analyseSetValued )
+ where
 
 import FlatCurry.Types
 import Overlapping(orInExpr)

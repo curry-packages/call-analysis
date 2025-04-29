@@ -1,6 +1,8 @@
 -- Replace calls to auxiliary let functions (introduced
 -- by OrCaseLifter) by let expressions
 
+module LetDropping where
+
 import TRS
 import Numeric ( readNat )
 

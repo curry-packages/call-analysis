@@ -1,7 +1,7 @@
 -----------------------------------------------------------------------------
 -- A few base functions for analysing dependencies in FlatCurry programs:
 --
--- Michael Hanus, February 2023
+-- Michael Hanus, April 2025
 -----------------------------------------------------------------------------
 
 module Dependency
@@ -14,7 +14,7 @@ import Prelude hiding ( empty )
 import Data.Maybe     ( fromJust )
 
 import FlatCurry.Types
-import Data.Set.RBTree ( SetRBT, member, empty, insert, toList, union )
+import Data.Set       ( Set, member, empty, insert, toList, union )
 
 -- Generic global function analysis where the property of each function is a combination
 -- of a property of the function and all its dependent functions.
@@ -60,20 +60,20 @@ callsDirectly :: FuncDecl -> [QName]
 callsDirectly fun = toList (snd (directlyDependent fun))
 
 -- set of direct dependencies for a function
-directlyDependent :: FuncDecl -> (QName,SetRBT QName)
+directlyDependent :: FuncDecl -> (QName,Set QName)
 directlyDependent (Func f _ _ _ (Rule _ e))   = (f,funcSetOfExpr e)
-directlyDependent (Func f _ _ _ (External _)) = (f,emptySet)
+directlyDependent (Func f _ _ _ (External _)) = (f,empty)
 
 -- compute the transitive closure of all dependencies based on a list of
 -- direct dependencies:
-depsClosure :: [(QName,SetRBT QName)] -> [(QName,SetRBT QName)]
+depsClosure :: [(QName,Set QName)] -> [(QName,Set QName)]
 depsClosure directdeps = map (\(f,ds)->(f,closure ds (toList ds)))
                              directdeps
  where
   closure olddeps [] = olddeps
   closure olddeps (f:fs) =
      let newdeps = filter (\e->not (member e olddeps))
-                          (toList (maybe emptySet id (lookup f directdeps)))
+                          (toList (maybe empty id (lookup f directdeps)))
       in closure (foldr insert olddeps newdeps) (newdeps++fs)
 
 -- Computes the list of all direct dependencies for all functions.
@@ -106,7 +106,7 @@ localDependencyGraphs funs =
 
 -- compute the transitive closure of all local dependencies based on a list of
 -- direct dependencies:
-localDepsClosure :: [(QName,SetRBT QName)] -> [(QName,SetRBT QName)]
+localDepsClosure :: [(QName,Set QName)] -> [(QName,Set QName)]
 localDepsClosure directdeps =
   map (\(f,ds)->(f,closure (fst f) ds (toList ds))) directdeps
  where
@@ -114,7 +114,7 @@ localDepsClosure directdeps =
   closure mod olddeps (f:fs)
    | mod == fst f  -- f is local in this module: add dependencies
     = let newdeps = filter (\e->not (member e olddeps))
-                           (toList (maybe emptySet id (lookup f directdeps)))
+                           (toList (maybe empty id (lookup f directdeps)))
        in closure mod (foldr insert olddeps newdeps) (newdeps++fs)
    | otherwise = closure mod olddeps fs
 
@@ -125,9 +125,9 @@ funcsInExpr e = toList (funcSetOfExpr e)
 
 -- Gets the set of all functions (including partially applied functions)
 -- called in an expression:
-funcSetOfExpr :: Expr -> SetRBT QName
-funcSetOfExpr (Var _) = emptySet
-funcSetOfExpr (Lit _) = emptySet
+funcSetOfExpr :: Expr -> Set QName
+funcSetOfExpr (Var _) = empty
+funcSetOfExpr (Lit _) = empty
 funcSetOfExpr (Comb ct f es) =
   if isConstructorComb ct then unionMap funcSetOfExpr es
                           else insert f (unionMap funcSetOfExpr es)
@@ -137,16 +137,14 @@ funcSetOfExpr (Or e1 e2) = union (funcSetOfExpr e1) (funcSetOfExpr e2)
 funcSetOfExpr (Case _ e bs) = union (funcSetOfExpr e) (unionMap funcSetOfBranch bs)
                      where funcSetOfBranch (Branch _ be) = funcSetOfExpr be
 
+isConstructorComb :: CombType -> Bool
 isConstructorComb ct = case ct of
   ConsCall       -> True
   ConsPartCall _ -> True
   _              -> False
 
-unionMap f = foldr union emptySet . map f
-
-emptySet = empty leqQName
-
-leqQName (m1,n1) (m2,n2) = m1 ++ '.': n1 <= m2 ++ '.' : n2
+unionMap :: (a -> Set QName) -> [a] -> Set QName
+unionMap f = foldr union empty . map f
 
 -- end of Dependency
 
